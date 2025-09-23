@@ -5,10 +5,21 @@ const axios = require('axios');
 const NodeCache = require('node-cache');
 
 const app = express();
-app.use(cors());
+
+// ✅ Enable CORS for both local & deployed frontend
+app.use(cors({
+  origin: [
+    "http://localhost:3000",             // local React dev
+    "https://your-frontend-domain.com"  // replace with your deployed frontend URL (Netlify/Vercel)
+  ],
+  methods: ["GET", "POST"],
+  credentials: true
+}));
+
 app.use(express.json());
 
-const tokenCache = new NodeCache({ stdTTL: 5 * 60 }); // cache token 5 min
+// Cache token for 5 minutes
+const tokenCache = new NodeCache({ stdTTL: 5 * 60 });
 const otpMap = new Map();
 
 const CUSTOMER_ID = process.env.CUSTOMER_ID;
@@ -41,18 +52,19 @@ async function getAuthToken() {
   }
 }
 
-// ✅ Send OTP
+// ✅ Send OTP route
 app.post('/send-otp', async (req, res) => {
   try {
     let { phone } = req.body;
     if (!phone) return res.status(400).json({ success: false, message: 'Phone number is required' });
 
+    // Normalize phone number
     phone = phone.replace(/\D/g, ''); // keep digits only
     if (phone.length !== 10) {
       return res.status(400).json({ success: false, message: 'Invalid mobile number format' });
     }
 
-    console.log('📨 Sending OTP to:', phone);
+    console.log('📨 Sending OTP to:', `+91${phone}`);
 
     const token = await getAuthToken();
 
@@ -61,7 +73,7 @@ app.post('/send-otp', async (req, res) => {
         countryCode: '91',
         customerId: CUSTOMER_ID,
         flowType: 'SMS',
-        mobileNumber: phone, // ✅ just 10 digits
+        mobileNumber: phone, // just 10 digits
       },
       headers: { authToken: token },
     });
@@ -72,7 +84,7 @@ app.post('/send-otp', async (req, res) => {
     otpMap.set(phone, { verificationId, token });
     setTimeout(() => otpMap.delete(phone), 5 * 60 * 1000);
 
-    console.log(`✅ OTP sent to ${phone}, verificationId: ${verificationId}`);
+    console.log(`✅ OTP sent to +91${phone}, verificationId: ${verificationId}`);
     res.json({ success: true, message: 'OTP sent', verificationId });
   } catch (err) {
     console.error('❌ Error sending OTP:', err.response?.data || err.message);
@@ -80,12 +92,12 @@ app.post('/send-otp', async (req, res) => {
   }
 });
 
-// ✅ Verify OTP
+// ✅ Verify OTP route
 app.post('/verify-otp', async (req, res) => {
   try {
     let { phone, otp } = req.body;
-    phone = phone.replace(/\D/g, ''); // normalize to 10 digits
-    console.log('🔍 Verifying OTP for:', phone);
+    phone = phone.replace(/\D/g, ''); // normalize
+    console.log('🔍 Verifying OTP for:', `+91${phone}`);
 
     const entry = otpMap.get(phone);
     if (!entry) return res.status(401).json({ success: false, message: 'OTP expired or not sent' });
@@ -104,7 +116,7 @@ app.post('/verify-otp', async (req, res) => {
     });
 
     const status = verifyResponse.data?.data?.verificationStatus;
-    console.log('🔍 Verification response:', status);
+    console.log('🔍 Verification status:', status);
 
     if (status === 'VERIFICATION_COMPLETED' || status === 'SUCCESS') {
       otpMap.delete(phone);
@@ -120,6 +132,9 @@ app.post('/verify-otp', async (req, res) => {
   }
 });
 
+// ✅ Health check
 app.get('/', (req, res) => res.send('🚀 Backend is running ✅'));
 
-app.listen(3001, () => console.log('🚀 Server running on port 3001'));
+// Start server
+const PORT = process.env.PORT || 3001;
+app.listen(PORT, () => console.log(`🚀 Server running on port ${PORT}`));
