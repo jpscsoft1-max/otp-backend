@@ -10,7 +10,7 @@ const app = express();
 app.use(cors({
   origin: [
     "http://localhost:3000",             // local React dev
-    "https://jpscube-management.netlify.app/"  // replace with your deployed frontend URL (Netlify/Vercel)
+    "https://jpscube-management.netlify.app"  // replace with your deployed frontend URL (Netlify/Vercel)
   ],
   methods: ["GET", "POST"],
   credentials: true
